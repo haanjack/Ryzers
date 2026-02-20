@@ -4,14 +4,15 @@
 import subprocess
 import yaml
 import os
+from .container import get_container_engine
 
 class DockerRunner:
     """
-    A class to execute Docker container scripts.
+    A class to execute Docker/Podman container scripts.
 
     Attributes:
         container_name (str): The name of the container.
-        script_name (str): The name of the bash script to run the docker image.
+        script_name (str): The name of the bash script to run the container image.
     """
 
     def __init__(self, container_name = None, docker_cmd=None, script_name: str = None):
@@ -25,6 +26,7 @@ class DockerRunner:
         self.container_name = self.get_last_container_name() if container_name is None else container_name
         self.script_name = f"ryzers.run.{self.container_name}.sh" if script_name is None else script_name
         self.docker_cmdstr = docker_cmd if docker_cmd is not None else ""
+        self.engine = get_container_engine()
 
 
     def __call__(self):
@@ -36,7 +38,7 @@ class DockerRunner:
         # Check if the script exists
         if not os.path.exists(self.script_name):
             raise FileNotFoundError(f"Script {self.script_name} not found.")
-        
+
         # Execute the script
         try:
 
@@ -50,22 +52,24 @@ class DockerRunner:
 
     def build_runscript(self, runflags, docker_cmd=""):
         """
-        Generates a bash script that combines Docker CLI flags from package config.yaml files.
+        Generates a bash script that combines container engine CLI flags from package config.yaml files.
 
         Args:
-            runflags (str): The Docker run flags.
+            runflags (str): The container run flags.
 
         Returns:
             str: The path to the generated bash script.
         """
+        container_cmd = self.engine.get_command()
+
         # Generate the bash script
         script_content = f"""#!/bin/bash
-# Auto-generated script to run Docker with combined flags
+# Auto-generated script to run {container_cmd.capitalize()} with combined flags
 
 # Enable X11 forwarding
-xhost +local:docker
+xhost +local:{container_cmd}
 
-docker run {runflags} {self.container_name} $1
+{container_cmd} run {runflags} {self.container_name} $1
 """
 
         # Write the script to the specified file
@@ -75,13 +79,13 @@ docker run {runflags} {self.container_name} $1
         # Make the script executable
         os.chmod(self.script_name, 0o755)
 
-        print(f"\nTo run this docker: ")
-        print(f"# Run last ryzer docker built:")
-        print(f"ryzers run [CMD_OVERRIDE] # will run last ryzer docker built.\n")
-        print(f"# Run this ryzer docker by name:")
+        print(f"\nTo run this container: ")
+        print(f"# Run last ryzer container built:")
+        print(f"ryzers run [CMD_OVERRIDE] # will run last ryzer container built.\n")
+        print(f"# Run this ryzer container by name:")
         print(f"ryzers run --name {self.container_name} [CMD_OVERRIDE]\n")
 
-        print("\nTo inspect the docker run call, see contents of the script file: ")
+        print("\nTo inspect the container run call, see contents of the script file: ")
         print(f"cat {self.script_name}")
 
     def get_last_container_name(self):
