@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 RUN apt install -y vulkan-tools mesa-vulkan-drivers
 RUN add-apt-repository ppa:deadsnakes/ppa && \
 	apt update && \
-	apt install -y python3.10 python3.10-venv python3.10-dev libboost-filesystem1.74.0
+	apt install -y python3.12 python3.12-venv python3.12-dev libboost-filesystem1.74.0
 
 # Clone Ryzen AI repo and lock onto 1.6 release
 RUN git clone https://github.com/amd/RyzenAI-SW
@@ -28,7 +28,7 @@ RUN cd RyzenAI-SW && \
 RUN cd /ryzers/RyzenAI-SW/Ryzen-AI-CVML-Library/samples && \
 	mkdir build-samples && \
 	cmake -S $PWD -B $PWD/build-samples && \
-	cmake --build $PWD/build-samples --config Release 
+	cmake --build $PWD/build-samples --config Release
 
 # Download video for testing
 RUN cd /ryzers/RyzenAI-SW/Ryzen-AI-CVML-Library/samples && \

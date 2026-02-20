@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     libxi-dev \
  && rm -rf /var/lib/apt/lists/*
 
-ARG MUJOCO_VERSION=2.3.7
+ARG MUJOCO_VERSION=3.5.0
 ENV MUJOCO_PATH=/root/.mujoco/mujoco-${MUJOCO_VERSION}
 ENV MUJOCO_PLUGIN_PATH=/root/.mujoco/plugins-empty
 ENV LD_LIBRARY_PATH=${MUJOCO_PATH}/bin:${LD_LIBRARY_PATH}

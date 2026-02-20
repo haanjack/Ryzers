@@ -10,27 +10,27 @@ The `config.yaml` file defines the metadata, build arguments, environment variab
 
 ### Schema for `config.yaml`
 ```bash
-init_image: <string>    
-gpu_support: <boolean>  
-x11_display: <boolean>  
+init_image: <string>
+gpu_support: <boolean>
+x11_display: <boolean>
 
 build_arguments:
-- <key1=value1>  
-- <key2=value2> 
+- <key1=value1>
+- <key2=value2>
 
 environment_variables:
-- <key1=value1> 
-- <key2=value2> 
+- <key1=value1>
+- <key2=value2>
 
 port_mappings:
-- <host_port1:container_port1>  
+- <host_port1:container_port1>
 - <host_port2:container_port2>
 
 volume_mappings:
-- <host_path1:container_path1>  
-- <host_path2:container_path2>     
+- <host_path1:container_path1>
+- <host_path2:container_path2>
 
-docker_extra_run_flags: <string> 
+docker_extra_run_flags: <string>
 ```
 
 ### Field Descriptions
@@ -44,7 +44,7 @@ All fields are optional and all have a default value if not specified.
 - **`x11_display`**: (Optional) A boolean value indicating whether X11 display forwarding is enabled. Defaults to `true`.
 
 - **`build_arguments`**: A list of build arguments to pass to the Docker build process. Each argument is specified as a key-value pair. For example:
-  - `"PYTHON_VERSION=3.10"` 
+  - `"PYTHON_VERSION=3.12"`
 
 - **`environment_variables`**: A list of environment variables to set in the container. Each variable is specified as a key-value pair. For example:
   - `"HSA_OVERRIDE_GFX_VERSION=11.0.0"`
@@ -56,7 +56,7 @@ All fields are optional and all have a default value if not specified.
   - `"$PWD/workspace/.cache/huggingface:/root/.cache/huggingface"`
 
 - **`docker_extra_run_flags`**: (Optional) A string of additional flags to pass to the `docker run` command. For example:
-  - `"--shm-size=2g"`: Increases shared memory size to 2GB 
+  - `"--shm-size=2g"`: Increases shared memory size to 2GB
 
 
 ## Dockerfile

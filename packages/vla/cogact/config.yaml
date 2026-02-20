@@ -1,7 +1,7 @@
 # Copyright(C) 2025 Advanced Micro Devices, Inc. All rights reserved.
 # SPDX-License-Identifier: MIT
 
-init_image: "rocm/pytorch:rocm6.3.3_ubuntu22.04_py3.10_pytorch_release_2.4.0"
+init_image: "rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.7.1"
 
 environment_variables:
 - "HSA_OVERRIDE_GFX_VERSION=11.0.0"
