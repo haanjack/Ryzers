@@ -11,12 +11,11 @@ RUN apt-get update && apt-get install -y git cmake build-essential python3-dev p
 
 RUN git config --global credential.helper store
 
-# Install release v0.4
+# Install latest lerobot with GR00T support
 RUN git clone https://github.com/huggingface/lerobot.git \
  && cd lerobot \
- && git checkout f25ac02 \
  && sed -i '/"torch[>=<~ ]*/d' pyproject.toml \
- && sed -i '/"torchvision[>=<~ ]*/d' pyproject.toml \ 
+ && sed -i '/"torchvision[>=<~ ]*/d' pyproject.toml \
  && pip install -e ".[aloha,pusht,dynamixel,feetech,pi]"
 
 RUN pip install --no-cache-dir "numpy<2" pytest transformers huggingface_hub num2words

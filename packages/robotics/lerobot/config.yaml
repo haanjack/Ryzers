@@ -1,13 +1,14 @@
 # Copyright(C) 2025 Advanced Micro Devices, Inc. All rights reserved.
 # SPDX-License-Identifier: MIT
 
+# Use ROCm 7.2 with PyTorch 2.7.1 and Python 3.12
+init_image: "rocm/pytorch:rocm7.2_ubuntu24.04_py3.12_pytorch_release_2.7.1"
+
 build_arguments:
-- "PYTHON_VERSION=3.10"   # Cannot exceed Python 3.11 due to Aloha Gym / Mujoco 2.3.7 dependency
-                          # https://pypi.org/project/mujoco/2.3.7/#files
+- "PYTHON_VERSION=3.12"
 
 environment_variables: #TODO: Update with your own HF token
-  #- "HF_TOKEN=your_token_here" 
-- "HSA_OVERRIDE_GFX_VERSION=11.0.0"
+  - "HF_TOKEN="
 
 # Make sure calibration is persistent and models are available after ryzer exit
 volume_mappings:
