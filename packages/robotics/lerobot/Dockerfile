@@ -6,10 +6,18 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /ryzers
 
-RUN apt-get update && apt-get install -y git cmake build-essential python3-dev pkg-config libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev pkg-config ffmpeg speech-dispatcher && \
+RUN apt-get update && apt-get install -y git cmake build-essential python3-dev pkg-config libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev pkg-config ffmpeg speech-dispatcher rocm-dev hipcc python3-pybind11 pybind11-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN git config --global credential.helper store
+
+# Install flash attention for ROCm (required for GR00T)
+ENV FLASH_ATTENTION_TRITON_AMD_ENABLE="TRUE"
+ENV BUILD_TYPE="rocm"
+RUN git clone --recursive https://github.com/ROCm/flash-attention && \
+    cd flash-attention && \
+    git checkout main_perf && \
+    python setup.py install
 
 # Install latest lerobot with GR00T support
 RUN git clone https://github.com/huggingface/lerobot.git \
@@ -18,7 +26,7 @@ RUN git clone https://github.com/huggingface/lerobot.git \
  && sed -i '/"torchvision[>=<~ ]*/d' pyproject.toml \
  && pip install -e ".[aloha,pusht,dynamixel,feetech,pi]"
 
-RUN pip install --no-cache-dir "numpy<2" pytest transformers huggingface_hub num2words
+RUN pip install --no-cache-dir "numpy<2" pytest huggingface_hub num2words "transformers>=4.57.1,<5.0.0" peft
 
 COPY test.sh /ryzers/test_lerobot.sh
 RUN chmod +x /ryzers/test_lerobot.sh
