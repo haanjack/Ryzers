@@ -18,11 +18,12 @@ class DockerRunner:
         node_rank (int): Rank of this node.
         master_addr (str): Master node address.
         master_port (int): Master node port.
+        policy (str): Policy type for training (act or groot).
     """
 
     def __init__(self, container_name = None, docker_cmd=None, script_name: str = None,
                  distributed=None, nproc_per_node=None, nnodes=1, node_rank=0,
-                 master_addr="localhost", master_port=29500):
+                 master_addr="localhost", master_port=29500, policy="act"):
         """
         Initializes the DockerRunner with the container name and optional script name.
 
@@ -35,6 +36,7 @@ class DockerRunner:
             node_rank (int): Rank of this node (0 for master, 1+ for workers)
             master_addr (str): Master node address for distributed training
             master_port (int): Master node port for distributed training
+            policy (str): Policy type for training (act or groot)
         """
         self.container_name = self.get_last_container_name() if container_name is None else container_name
         self.script_name = f"ryzers.run.{self.container_name}.sh" if script_name is None else script_name
@@ -45,6 +47,7 @@ class DockerRunner:
         self.node_rank = node_rank
         self.master_addr = master_addr
         self.master_port = master_port
+        self.policy = policy
 
 
     def __call__(self):
@@ -91,6 +94,9 @@ class DockerRunner:
             if self.nproc_per_node:
                 dist_env += f" \\\n    -e NPROC_PER_NODE={self.nproc_per_node}"
 
+        # Add policy environment variable
+        policy_env = f" -e POLICY_TYPE={self.policy}"
+
         # Generate the bash script
         script_content = f"""#!/bin/bash
 # Auto-generated script to run Docker with combined flags
@@ -98,7 +104,7 @@ class DockerRunner:
 # Enable X11 forwarding
 xhost +local:docker
 
-docker run {runflags}{dist_env} {self.container_name} $1
+docker run {runflags}{dist_env}{policy_env} {self.container_name} $1
 """
 
         # Write the script to the specified file

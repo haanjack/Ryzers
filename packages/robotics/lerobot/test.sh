@@ -4,8 +4,11 @@
 
 set -e
 
+# Policy type: act (default, faster) or groot (GR00T)
+POLICY_TYPE="${POLICY_TYPE:-act}"
+
 echo "========================================"
-echo "LeRobot GR00T Fine-tuning Test"
+echo "LeRobot Training Test"
 echo "========================================"
 
 # Test 1: Basic lerobot installation check
@@ -13,10 +16,14 @@ echo ""
 echo "Test 1: Checking lerobot installation..."
 python -c "import lerobot; print(f'LeRobot version: {lerobot.__version__}')"
 
-# Test 2: Check GR00T policy is available
+# Test 2: Check policy availability
 echo ""
-echo "Test 2: Checking GR00T policy availability..."
-python -c "from lerobot.policies.groot.modeling_groot import GrootPolicy; print('GR00T/GrootPolicy imported successfully')"
+echo "Test 2: Checking policy availability..."
+if [ "$POLICY_TYPE" = "groot" ]; then
+    python -c "from lerobot.policies.groot.modeling_groot import GrootPolicy; print('GR00T/GrootPolicy imported successfully')"
+else
+    python -c "from lerobot.policies.act.modeling_act import ACTPolicy; print('ACTPolicy imported successfully')"
+fi
 
 # Detect available GPUs
 echo ""
@@ -47,6 +54,7 @@ if [ "$GPU_COUNT" -gt 1 ]; then
     echo ""
     echo "========================================"
     echo "Running distributed training test with $GPU_COUNT GPUs..."
+    echo "Policy: $POLICY_TYPE"
     echo "========================================"
 
     # Set environment variables for distributed training
@@ -58,13 +66,14 @@ if [ "$GPU_COUNT" -gt 1 ]; then
     # Run distributed training test
     exec /ryzers/distributed_train.sh --nproc-per-node "$GPU_COUNT" -- \
         --dataset.repo_id=lerobot/pusht \
-        --policy.type=act \
+        --policy.type="$POLICY_TYPE" \
         --training.online_steps=2 \
         --policy.device=cuda
 else
     echo ""
     echo "========================================"
     echo "Running single-GPU training test..."
+    echo "Policy: $POLICY_TYPE"
     echo "========================================"
 
     # Run Test

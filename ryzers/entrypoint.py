@@ -21,7 +21,7 @@ def build(base_path, name, packages, init_image):
     mgr.build()
 
 def run(name, docker_cmd, distributed=None, no_distributed=False, nproc_per_node=None,
-        nnodes=1, node_rank=0, master_addr="localhost", master_port=29500):
+        nnodes=1, node_rank=0, master_addr="localhost", master_port=29500, policy="act"):
     """
     Runs the Docker container with the specified name.
 
@@ -35,12 +35,14 @@ def run(name, docker_cmd, distributed=None, no_distributed=False, nproc_per_node
         node_rank (int): Rank of this node (0 for master, 1+ for workers)
         master_addr (str): Master node address for distributed training
         master_port (int): Master node port for distributed training
+        policy (str): Policy type for training (act or groot)
     """
     # If no_distributed is set, distributed is False
     if no_distributed:
         distributed = False
     runner = DockerRunner(name, docker_cmd, distributed=distributed, nproc_per_node=nproc_per_node,
-                          nnodes=nnodes, node_rank=node_rank, master_addr=master_addr, master_port=master_port)
+                          nnodes=nnodes, node_rank=node_rank, master_addr=master_addr, master_port=master_port,
+                          policy=policy)
     runner()
 
 def main():
@@ -84,6 +86,10 @@ def main():
     run_parser.add_argument("--master-port", type=int, default=29500,
                             help="Master node port for distributed training")
 
+    # Training policy argument
+    run_parser.add_argument("--policy", default="act", choices=["act", "groot"],
+                            help="Policy type for training: act (default, faster) or groot (GR00T)")
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -92,7 +98,7 @@ def main():
     elif args.command == "run":
         run(args.name, args.docker_cmd, distributed=args.distributed, no_distributed=args.no_distributed,
             nproc_per_node=args.nproc_per_node, nnodes=args.nnodes, node_rank=args.node_rank,
-            master_addr=args.master_addr, master_port=args.master_port)
+            master_addr=args.master_addr, master_port=args.master_port, policy=args.policy)
     else:
         print(f"Unknown command: {args.command}", file=sys.stderr)
         sys.exit(1)
