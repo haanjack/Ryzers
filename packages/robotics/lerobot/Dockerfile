@@ -19,6 +19,15 @@ RUN git clone --recursive https://github.com/ROCm/flash-attention && \
     git checkout main_perf && \
     python setup.py install
 
+# Install RCCL for distributed training on ROCm
+RUN apt-get update && apt-get install -y librccl-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy distributed training scripts
+COPY detect_gpus.py /ryzers/detect_gpus.py
+COPY distributed_train.sh /ryzers/distributed_train.sh
+RUN chmod +x /ryzers/distributed_train.sh
+
 # Install latest lerobot with GR00T support
 RUN git clone https://github.com/huggingface/lerobot.git \
  && cd lerobot \

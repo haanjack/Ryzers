@@ -9,6 +9,9 @@ build_arguments:
 
 environment_variables: #TODO: Update with your own HF token
   - "HF_TOKEN="
+  # Distributed training environment variables
+  - "RCCL_ENABLE_INTERRUPT=1"
+  - "NCCL_SOCKET_IFNAME=^docker0,lo"
 
 # Make sure calibration is persistent and models are available after ryzer exit
 volume_mappings:

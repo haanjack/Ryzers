@@ -12,19 +12,39 @@ class DockerRunner:
     Attributes:
         container_name (str): The name of the container.
         script_name (str): The name of the bash script to run the docker image.
+        distributed (bool): Whether to enable distributed training.
+        nproc_per_node (int): Number of processes per node.
+        nnodes (int): Number of nodes for multi-node training.
+        node_rank (int): Rank of this node.
+        master_addr (str): Master node address.
+        master_port (int): Master node port.
     """
 
-    def __init__(self, container_name = None, docker_cmd=None, script_name: str = None):
+    def __init__(self, container_name = None, docker_cmd=None, script_name: str = None,
+                 distributed=None, nproc_per_node=None, nnodes=1, node_rank=0,
+                 master_addr="localhost", master_port=29500):
         """
         Initializes the DockerRunner with the container name and optional script name.
 
         Args:
             container_name (str): The name of the container.
             script_name (str, optional): The name of the script to execute. Defaults to None.
+            distributed (bool, optional): Enable distributed training (auto-detected by default)
+            nproc_per_node (int, optional): Number of processes per node (default: auto-detect all GPUs)
+            nnodes (int): Number of nodes for multi-node training
+            node_rank (int): Rank of this node (0 for master, 1+ for workers)
+            master_addr (str): Master node address for distributed training
+            master_port (int): Master node port for distributed training
         """
         self.container_name = self.get_last_container_name() if container_name is None else container_name
         self.script_name = f"ryzers.run.{self.container_name}.sh" if script_name is None else script_name
         self.docker_cmdstr = docker_cmd if docker_cmd is not None else ""
+        self.distributed = distributed
+        self.nproc_per_node = nproc_per_node
+        self.nnodes = nnodes
+        self.node_rank = node_rank
+        self.master_addr = master_addr
+        self.master_port = master_port
 
 
     def __call__(self):
@@ -58,6 +78,19 @@ class DockerRunner:
         Returns:
             str: The path to the generated bash script.
         """
+        # Build distributed training environment variables
+        dist_env = ""
+        if self.distributed is not None or self.nproc_per_node is not None:
+            dist_value = '1' if self.distributed else '0'
+            dist_env = f""" \\
+    -e DISTRIBUTED={dist_value} \\
+    -e NNODES={self.nnodes} \\
+    -e NODE_RANK={self.node_rank} \\
+    -e MASTER_ADDR={self.master_addr} \\
+    -e MASTER_PORT={self.master_port}"""
+            if self.nproc_per_node:
+                dist_env += f" \\\n    -e NPROC_PER_NODE={self.nproc_per_node}"
+
         # Generate the bash script
         script_content = f"""#!/bin/bash
 # Auto-generated script to run Docker with combined flags
@@ -65,7 +98,7 @@ class DockerRunner:
 # Enable X11 forwarding
 xhost +local:docker
 
-docker run {runflags} {self.container_name} $1
+docker run {runflags}{dist_env} {self.container_name} $1
 """
 
         # Write the script to the specified file

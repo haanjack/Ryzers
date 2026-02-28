@@ -20,15 +20,27 @@ def build(base_path, name, packages, init_image):
     mgr = RyzerManager(base_path, name, packages, init_image)
     mgr.build()
 
-def run(name, docker_cmd):
+def run(name, docker_cmd, distributed=None, no_distributed=False, nproc_per_node=None,
+        nnodes=1, node_rank=0, master_addr="localhost", master_port=29500):
     """
     Runs the Docker container with the specified name.
 
     Args:
         name (str): The name of the Docker image to run.
         docker_cmd (str): The command to run with the Docker run call
+        distributed (bool, optional): Enable distributed training (auto-detected by default)
+        no_distributed (bool): Disable distributed training (force single-GPU)
+        nproc_per_node (int, optional): Number of processes per node (default: auto-detect all GPUs)
+        nnodes (int): Number of nodes for multi-node training
+        node_rank (int): Rank of this node (0 for master, 1+ for workers)
+        master_addr (str): Master node address for distributed training
+        master_port (int): Master node port for distributed training
     """
-    runner = DockerRunner(name, docker_cmd)
+    # If no_distributed is set, distributed is False
+    if no_distributed:
+        distributed = False
+    runner = DockerRunner(name, docker_cmd, distributed=distributed, nproc_per_node=nproc_per_node,
+                          nnodes=nnodes, node_rank=node_rank, master_addr=master_addr, master_port=master_port)
     runner()
 
 def main():
@@ -56,13 +68,31 @@ def main():
     run_parser.add_argument("--name", default=None, help="Name of the docker image to run")
     run_parser.add_argument("docker_cmd", nargs="?", default="", help="Overwrite the Docker CMD to run this command (optional)")
 
+    # Distributed training arguments
+    run_parser.add_argument("--distributed", action="store_true", default=None,
+                            help="Enable distributed training (auto-detected by default)")
+    run_parser.add_argument("--no-distributed", action="store_true", default=False,
+                            help="Disable distributed training (force single-GPU)")
+    run_parser.add_argument("--nproc-per-node", type=int, default=None,
+                            help="Number of processes per node (default: auto-detect all GPUs)")
+    run_parser.add_argument("--nnodes", type=int, default=1,
+                            help="Number of nodes for multi-node training")
+    run_parser.add_argument("--node-rank", type=int, default=0,
+                            help="Rank of this node (0 for master, 1+ for workers)")
+    run_parser.add_argument("--master-addr", default="localhost",
+                            help="Master node address for distributed training")
+    run_parser.add_argument("--master-port", type=int, default=29500,
+                            help="Master node port for distributed training")
+
     # Parse the arguments
     args = parser.parse_args()
 
     if args.command == "build":
         build(args.base_path, args.name, args.dockerfiles, args.init_image)
     elif args.command == "run":
-        run(args.name, args.docker_cmd)
+        run(args.name, args.docker_cmd, distributed=args.distributed, no_distributed=args.no_distributed,
+            nproc_per_node=args.nproc_per_node, nnodes=args.nnodes, node_rank=args.node_rank,
+            master_addr=args.master_addr, master_port=args.master_port)
     else:
         print(f"Unknown command: {args.command}", file=sys.stderr)
         sys.exit(1)
