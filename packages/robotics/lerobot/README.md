@@ -1,24 +1,114 @@
 # LeRobot
 
-Contains everything you need to build & run a ROCm-enabled LeRobot container.
+Contains everything you need to build & run a ROCm-enabled LeRobot container with support for GR00T fine-tuning and multi-GPU distributed training.
 
-## Build & Run the Docker Container
+## Build & Run the Container
 
-To verify the lerobot installation simply run the built ryzer -- this will run one of the lerobot training examples as a test.
+Ryzers automatically detects your container runtime (Podman or Docker) and uses the appropriate one.
 
 ```bash
 ryzers build lerobot
 ryzers run
 ```
 
+This will run a quick training test to verify the installation. By default, it uses the ACT policy on a single GPU.
+
+### Policy Selection
+
+Choose between ACT (faster, default) and GR00T policies:
+
+```bash
+# ACT policy (default)
+ryzers run --policy act
+
+# GR00T policy
+ryzers run --policy groot
+```
+
+### Container Runtime
+
+Ryzers automatically detects and uses:
+- **Podman** (preferred if available)
+- **Docker** (fallback)
+
+No configuration needed - the runtime is detected at build and run time.
+
+## Distributed Training
+
+Scale training across multiple AMD GPUs using ROCm's RCCL backend.
+
+### Single-GPU (Default)
+
+```bash
+ryzers run
+```
+
+### Multi-GPU Auto-Detect
+
+Automatically uses all available GPUs:
+
+```bash
+ryzers run --distributed
+```
+
+### Force Specific GPU Count
+
+```bash
+# Use exactly 4 GPUs
+ryzers run --distributed --nproc-per-node 4
+```
+
+### Force Single-GPU Mode
+
+Disable distributed training even on multi-GPU systems:
+
+```bash
+ryzers run --no-distributed
+```
+
+### Multi-Node Training
+
+For training across multiple nodes, run on each node with appropriate settings:
+
+```bash
+# Node 0 (master)
+ryzers run --distributed --nnodes 2 --nproc-per-node 4 --node-rank 0 --master-addr 10.0.0.1
+
+# Node 1 (worker)
+ryzers run --distributed --nnodes 2 --nproc-per-node 4 --node-rank 1 --master-addr 10.0.0.1
+```
+
+### Distributed Training Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--distributed` | Enable distributed training | auto-detect |
+| `--no-distributed` | Force single-GPU mode | - |
+| `--nproc-per-node` | GPUs per node | all available |
+| `--nnodes` | Number of nodes | 1 |
+| `--node-rank` | Node rank (0=master) | 0 |
+| `--master-addr` | Master node address | localhost |
+| `--master-port` | Master node port | 29500 |
+| `--policy` | Policy type (act/groot) | act |
+
+### Environment Variables
+
+The following environment variables can be set for distributed training:
+
+| Variable | Description |
+|----------|-------------|
+| `DISTRIBUTED` | Set to `0` to force single-GPU |
+| `NPROC_PER_NODE` | Number of GPUs to use |
+| `POLICY_TYPE` | Policy type (act or groot) |
+
 ## Training and Controlling Robot Arms
 
 For this example we use the LeRobot [SO-101](https://huggingface.co/docs/lerobot/en/so101) leader and follower arms, however you can easily swap them with a different robot arm type in the following scripts.
 
 ### 1. Reference & Config
-- **Guide:** Hugging Face “Imitation Learning on Real-World Robots”  
-  <https://huggingface.co/docs/lerobot/en/il_robots>  
-- **`config.yaml`:**  
+- **Guide:** Hugging Face "Imitation Learning on Real-World Robots"
+  <https://huggingface.co/docs/lerobot/en/il_robots>
+- **`config.yaml`:**
   - Pay attention to the TODO items - add your own `HF_TOKEN` from Hugging Face, and map your robot and video devices accordingly. Step 2. makes this simpler and more reproducible, but is optional.
 
 **Important:** you will likely need read/write permissions enabled for the serial devices before you start the docker.
@@ -54,7 +144,7 @@ Your serial and video devices may change indexes in `/dev` between sessions or w
    ```
    sudo vim /etc/udev/rules.d/99-usb-serial.rules
    ```
-   
+
    Add the following:
    ```ini
    SUBSYSTEM=="tty", ATTRS{serial}=="<leader-serial>",   SYMLINK+="ttyACM_leader"
@@ -150,7 +240,9 @@ lerobot-dataset-viz \
 
 ### 4. Train a policy
 
-Using the collected dataset you can use it to train a policy like [ACT](https://github.com/tonyzhaozh/act) or [pi0](https://www.physicalintelligence.company/blog/pi0). Depending on your dataset size you should be able to train a small policy like ACT within a couple hours on the Strix Halo iGPU. Adjust training parameters as required for your policy and dataset.
+Using the collected dataset you can use it to train a policy like [ACT](https://github.com/tonyzhaozh/act) or [GR00T](https://huggingface.co/nvidia/GR00T-Vision-Language-Action). Depending on your dataset size you should be able to train a small policy like ACT within a couple hours on the Strix Halo iGPU. Adjust training parameters as required for your policy and dataset.
+
+#### Single-GPU Training
 
 ```bash
 lerobot-train \
@@ -162,6 +254,29 @@ lerobot-train \
     --policy.repo_id=${HF_USER}/place_cube_act \
     --steps=20000 \
     --save_freq=2000
+```
+
+#### Multi-GPU Distributed Training
+
+For larger datasets or faster training, use distributed training across multiple GPUs:
+
+```bash
+# Inside the container, or use ryzers run --distributed
+torchrun --nproc_per_node=4 \
+    -m lerobot.scripts.train \
+    --dataset.repo_id=${HF_USER}/cube_test_dataset \
+    --policy.type=act \
+    --policy.device=cuda \
+    --training.batch_size=64 \
+    --steps=20000
+```
+
+Or use the convenience script:
+```bash
+/ryzers/distributed_train.sh --nproc-per-node 4 -- \
+    --dataset.repo_id=${HF_USER}/cube_test_dataset \
+    --policy.type=act \
+    --policy.device=cuda
 ```
 
 ### 5. Run inference
@@ -189,6 +304,16 @@ Observe your arm doing its tasks autonomously!
 
 Now you are well equipped to run the LeRobot stack on your Strix Halo machine. Try tackling different tasks, collect more data or explore other policies - have fun!
 
+## HPC Cluster Training
+
+For training on AMD HPC clusters, use the provided SLURM job templates in `hpc_cluster_setup.sh`. This script creates several job templates:
+
+- `job.train_pusht_example` - Single-GPU training
+- `job.train_pusht_distributed_4gpu` - 4 GPUs on 1 node
+- `job.train_pusht_multinode` - 8 GPUs across 2 nodes
+- `job.train_groot_example` - Single-GPU GR00T training
+- `job.train_groot_distributed_4gpu` - 4 GPUs GR00T training
+
 ## Troubleshooting
 
 ### Arms out of sync
@@ -214,3 +339,11 @@ RuntimeError: OpenCVCamera(/dev/webcam_top) read failed (status=False).
 ```
 
 It might be a USB controller bandwidth limitation - try connecting cameras to different usb controllers or reduce resolution/fps.
+
+### Distributed training issues
+
+If distributed training fails to start:
+1. Ensure RCCL is installed (`librccl-dev` on Ubuntu)
+2. Check that all GPUs are visible (`rocm-smi`)
+3. Verify network connectivity between nodes for multi-node training
+4. Check `MASTER_ADDR` and `MASTER_PORT` are accessible from all nodes
