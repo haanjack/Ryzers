@@ -5,6 +5,8 @@ import subprocess
 import yaml
 import os
 
+from .container_runtime import get_runtime
+
 class DockerRunner:
     """
     A class to execute Docker container scripts.
@@ -48,6 +50,7 @@ class DockerRunner:
         self.master_addr = master_addr
         self.master_port = master_port
         self.policy = policy
+        self.runtime = get_runtime()
 
 
     def __call__(self):
@@ -97,14 +100,18 @@ class DockerRunner:
         # Add policy environment variable
         policy_env = f" -e POLICY_TYPE={self.policy}"
 
+        # Get the container runtime (docker or podman)
+        runtime_cmd = self.runtime.runtime
+
         # Generate the bash script
         script_content = f"""#!/bin/bash
-# Auto-generated script to run Docker with combined flags
+# Auto-generated script to run {runtime_cmd} with combined flags
+# Detected runtime: {runtime_cmd}
 
 # Enable X11 forwarding
-xhost +local:docker
+xhost +local:docker 2>/dev/null || true
 
-docker run {runflags}{dist_env}{policy_env} {self.container_name} $1
+{runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} $1
 """
 
         # Write the script to the specified file
@@ -114,13 +121,13 @@ docker run {runflags}{dist_env}{policy_env} {self.container_name} $1
         # Make the script executable
         os.chmod(self.script_name, 0o755)
 
-        print(f"\nTo run this docker: ")
-        print(f"# Run last ryzer docker built:")
-        print(f"ryzers run [CMD_OVERRIDE] # will run last ryzer docker built.\n")
-        print(f"# Run this ryzer docker by name:")
+        print(f"\nTo run this container: ")
+        print(f"# Run last ryzer container built:")
+        print(f"ryzers run [CMD_OVERRIDE] # will run last ryzer container built.\n")
+        print(f"# Run this ryzer container by name:")
         print(f"ryzers run --name {self.container_name} [CMD_OVERRIDE]\n")
 
-        print("\nTo inspect the docker run call, see contents of the script file: ")
+        print("\nTo inspect the container run call, see contents of the script file: ")
         print(f"cat {self.script_name}")
 
     def get_last_container_name(self):

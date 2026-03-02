@@ -6,6 +6,8 @@ import yaml
 import subprocess
 from typing import List
 
+from .container_runtime import get_runtime
+
 class DockerBuilder:
     """
     A class to build Docker images sequentially from a list of Dockerfiles.
@@ -21,6 +23,7 @@ class DockerBuilder:
         """
         self.container_name = container_name
         self.packages = packages
+        self.runtime = get_runtime()
 
     def build(self, dockerfiles: List[str], buildflags: List[str], initial_image: str):
         """
@@ -29,6 +32,9 @@ class DockerBuilder:
         :param dockerfiles: List of paths to Dockerfiles.
         :param buildflags: List of build flags to use during the Docker build.
         """
+        # Print the detected runtime once at the start
+        print(f"Using container runtime: {self.runtime.runtime}")
+
         current_base_image = initial_image
         for index, dockerfile_path in enumerate(dockerfiles):
             if not os.path.exists(dockerfile_path):
@@ -40,15 +46,16 @@ class DockerBuilder:
 
             print(f"Building Dockerfile '{index+1}/{len(dockerfiles)} {dockerfile_path}' with base image '{current_base_image}'...")
 
-            # Build the Docker image with the current base image
+            # Build the container image with the current base image
             package_path = os.path.abspath(os.path.dirname(dockerfile_path))
             log_file = f'ryzers.build.{image_tag}.log'
 
-            cmd = f"docker build -t {image_tag} {buildflags} --build-arg BASE_IMAGE={current_base_image} {package_path}"
+            runtime_cmd = self.runtime.runtime
+            cmd = f"{runtime_cmd} build -t {image_tag} {buildflags} --build-arg BASE_IMAGE={current_base_image} {package_path}"
             print(cmd)
             with open(log_file, "w") as log:
                 subprocess.run(
-                    cmd.split(), 
+                    cmd.split(),
                     check=True
                 )
 
