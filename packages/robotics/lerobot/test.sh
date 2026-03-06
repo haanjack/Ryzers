@@ -145,65 +145,51 @@ snapshot_download(
 print(f"Dataset cached under: {local_dir}")
 PY
 
-# Run test based on GPU count
-if [ "$GPU_COUNT" -gt 1 ] || [ "$NNODES" -gt 1 ]; then
-    echo ""
-    echo "========================================"
-    echo "Running distributed training test with $GPU_COUNT GPUs..."
-    echo "Policy: $POLICY_TYPE"
-    echo "========================================"
+# Run test with torchrun (works for both single and multi-GPU)
+echo ""
+echo "========================================"
+echo "Running training test with $GPU_COUNT GPU(s)..."
+echo "Policy: $POLICY_TYPE"
+echo "========================================"
 
-    WORLD_SIZE=$((NNODES * GPU_COUNT))
+WORLD_SIZE=$((NNODES * GPU_COUNT))
 
-    # Set environment variables for distributed training
-    export WORLD_SIZE
-    export NNODES
-    export NODE_RANK
-    export MASTER_ADDR
-    export MASTER_PORT
-    export RCCL_ENABLE_INTERRUPT="${RCCL_ENABLE_INTERRUPT:-1}"
-    export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-^docker0,lo}"
+# Set environment variables for distributed training
+export WORLD_SIZE
+export NNODES
+export NODE_RANK
+export MASTER_ADDR
+export MASTER_PORT
+export RCCL_ENABLE_INTERRUPT="${RCCL_ENABLE_INTERRUPT:-1}"
+export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-^docker0,lo}"
 
-    TORCHRUN_CMD="torchrun \
-        --nnodes=$NNODES \
-        --nproc_per_node=$GPU_COUNT \
-        --node_rank=$NODE_RANK \
-        --master_addr=$MASTER_ADDR \
-        --master_port=$MASTER_PORT"
+TORCHRUN_CMD="torchrun \
+    --nnodes=$NNODES \
+    --nproc_per_node=$GPU_COUNT \
+    --node_rank=$NODE_RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT"
 
-    BASE_ARGS=(
-        --dataset.repo_id=lerobot/pusht
-        --policy.type="$POLICY_TYPE"
-        --training.online_steps=2
-        --policy.device=cuda
-    )
+# Training arguments
+DISTRIBUTED_ARGS=(
+    --training-steps=$TRAINING_STEPS
+    --batch-size=$BATCH_SIZE
+    --policy=$POLICY_TYPE
+)
 
-    if [ ${#TRAIN_ARGS[@]} -gt 0 ]; then
-        FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${TRAIN_ARGS[*]}"
-    else
-        FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${BASE_ARGS[*]}"
-    fi
-
-    if [ "$DRY_RUN" = true ]; then
-        echo "Dry run - command that would be executed:"
-        echo "$FULL_CMD"
-        exit 0
-    fi
-
-    exec $FULL_CMD
+if [ ${#TRAIN_ARGS[@]} -gt 0 ]; then
+    FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${TRAIN_ARGS[*]}"
 else
-    echo ""
-    echo "========================================"
-    echo "Running single-GPU training test..."
-    echo "Policy: $POLICY_TYPE"
-    echo "========================================"
-
-    if [ ${#TRAIN_ARGS[@]} -gt 0 ]; then
-        python /ryzers/lerobot/examples/training/train_policy.py "${TRAIN_ARGS[@]}"
-    else
-        python /ryzers/lerobot/examples/training/train_policy.py
-    fi
+    FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${DISTRIBUTED_ARGS[*]}"
 fi
+
+if [ "$DRY_RUN" = true ]; then
+    echo "Dry run - command that would be executed:"
+    echo "$FULL_CMD"
+    exit 0
+fi
+
+exec $FULL_CMD
 
 echo ""
 echo "========================================"

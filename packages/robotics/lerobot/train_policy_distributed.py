@@ -10,6 +10,10 @@ Based on lerobot/examples/training/train_policy.py with distributed training sup
 import argparse
 import os
 from pathlib import Path
+import warnings
+
+# Suppress torchvision video deprecation warnings (not critical for training)
+warnings.filterwarnings("ignore", message="The video decoding and encoding capabilities")
 
 import torch
 import torch.distributed as dist
@@ -20,8 +24,12 @@ from torch.utils.data.distributed import DistributedSampler
 from lerobot.configs.types import FeatureType
 from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
 from lerobot.datasets.utils import dataset_to_policy_features
+from lerobot.policies.act.configuration_act import ACTConfig
+from lerobot.policies.act.modeling_act import ACTPolicy
 from lerobot.policies.diffusion.configuration_diffusion import DiffusionConfig
 from lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
+from lerobot.policies.groot.configuration_groot import GrootConfig
+from lerobot.policies.groot.modeling_groot import GrootPolicy
 from lerobot.policies.factory import make_pre_post_processors
 
 
@@ -45,6 +53,11 @@ def main(args=None):
     parser = argparse.ArgumentParser(description="DDP-enabled LeRobot training")
     parser.add_argument("--use-compile", action="store_true", help="Enable torch.compile optimization")
     parser.add_argument("--use-amp", action="store_true", help="Enable automatic mixed precision")
+    parser.add_argument("--training-steps", type=int, default=5000, help="Total training steps (default: 5000)")
+    parser.add_argument("--batch-size", type=int, default=64, help="Batch size (default: 64)")
+    parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate (default: 1e-4)")
+    parser.add_argument("--policy", type=str, default="act", choices=["act", "diffusion", "groot"], help="Policy type (default: act)")
+    parser.add_argument("--dataset", type=str, default="lerobot/pusht", help="Dataset repo ID (default: lerobot/pusht)")
 
     # Filter out torchrun/DDP arguments before parsing
     if args is None:
@@ -68,7 +81,7 @@ def main(args=None):
         print(f"{'='*60}\n")
 
     # Create output directory
-    output_directory = Path("outputs/train/example_pusht_diffusion")
+    output_directory = Path(f"outputs/train/{known_args.policy}_{known_args.dataset.split('/')[-1]}")
     if rank == 0:
         output_directory.mkdir(parents=True, exist_ok=True)
 
@@ -78,11 +91,11 @@ def main(args=None):
     # Setup device
     device = torch.device(f"cuda:{local_rank}" if is_distributed else "cuda")
 
-    # Training hyperparameters
-    training_steps = 5000
+    # Training hyperparameters (from arguments or defaults)
+    training_steps = known_args.training_steps
+    batch_size = known_args.batch_size
+    learning_rate = known_args.learning_rate
     log_freq = 100
-    batch_size = 64
-    learning_rate = 1e-4
     num_workers = 4
 
     # Optimization flags (from arguments or defaults)
@@ -94,17 +107,42 @@ def main(args=None):
         print(f"  Optimizations:")
         print(f"    torch.compile: {use_compile}")
         print(f"    Mixed precision: {use_amp} (dtype: {amp_dtype})")
+        print(f"  Policy: {known_args.policy}")
+        print(f"  Dataset: {known_args.dataset}")
 
     # Load dataset metadata and configure policy
-    dataset_metadata = LeRobotDatasetMetadata("lerobot/pusht")
+    dataset_metadata = LeRobotDatasetMetadata(known_args.dataset)
     features = dataset_to_policy_features(dataset_metadata.features)
     output_features = {key: ft for key, ft in features.items() if ft.type is FeatureType.ACTION}
     input_features = {key: ft for key, ft in features.items() if key not in output_features}
 
-    cfg = DiffusionConfig(input_features=input_features, output_features=output_features)
+    # Select policy config and class based on policy type
+    policy_type = known_args.policy.lower()
+    if policy_type == "act":
+        cfg = ACTConfig(
+            input_features=input_features,
+            output_features=output_features,
+            device=device
+        )
+        policy = ACTPolicy(cfg)
+    elif policy_type == "diffusion":
+        cfg = DiffusionConfig(
+            input_features=input_features,
+            output_features=output_features,
+            device=device
+        )
+        policy = DiffusionPolicy(cfg)
+    elif policy_type == "groot":
+        cfg = GrootConfig(
+            input_features=input_features,
+            output_features=output_features,
+            device=device
+        )
+        policy = GrootPolicy(cfg)
+    else:
+        raise ValueError(f"Unknown policy type: {policy_type}")
 
-    # Instantiate policy
-    policy = DiffusionPolicy(cfg)
+    # Setup policy for training
     policy.train()
     policy.to(device)
     for module in policy.modules():
@@ -124,15 +162,22 @@ def main(args=None):
 
     preprocessor, postprocessor = make_pre_post_processors(cfg, dataset_stats=dataset_metadata.stats)
 
-    # Configure delta timestamps
-    delta_timestamps = {
-        "observation.image": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
-        "observation.state": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
-        "action": [i / dataset_metadata.fps for i in cfg.action_delta_indices],
-    }
+    # Configure delta timestamps (if supported by policy config)
+    delta_timestamps = {}
+    if hasattr(cfg, 'observation_delta_indices') and hasattr(cfg, 'action_delta_indices'):
+        delta_timestamps = {
+            "observation.image": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
+            "observation.state": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
+            "action": [i / dataset_metadata.fps for i in cfg.action_delta_indices],
+        }
+    else:
+        # Default for policies without delta indices (e.g., some versions of GRoOT)
+        if rank == 0:
+            print("  Note: Policy config doesn't have delta_indices, using default timestamps")
+        delta_timestamps = None
 
     # Create dataset
-    dataset = LeRobotDataset("lerobot/pusht", delta_timestamps=delta_timestamps)
+    dataset = LeRobotDataset(known_args.dataset, delta_timestamps=delta_timestamps)
 
     # Create distributed sampler if needed
     sampler = DistributedSampler(dataset, shuffle=True) if is_distributed else None
