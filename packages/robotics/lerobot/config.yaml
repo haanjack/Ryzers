@@ -16,6 +16,7 @@ environment_variables: #TODO: Update with your own HF token
 # Make sure calibration is persistent and models are available after ryzer exit
 volume_mappings:
 - "~/.cache/huggingface/lerobot/calibration/:/root/.cache/huggingface/lerobot/calibration"
+- "~/.cache/huggingface/hub/:/root/.cache/huggingface/hub"
 - "$PWD/packages/robotics/lerobot/mounted:/ryzers/mounted"
 
 # TODO: change to your robot and video device locations:
