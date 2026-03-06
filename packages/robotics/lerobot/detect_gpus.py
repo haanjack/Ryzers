@@ -38,16 +38,17 @@ def detect_gpus_rocm_smi():
         return 0, []
 
     # Parse GPU IDs from rocm-smi output
-    gpu_ids = []
+    # Extract unique GPU indices from lines like "GPU[0]          : Device Name: ..."
+    gpu_ids = set()
     for line in output.split("\n"):
-        if line.startswith("GPU") and ":" in line:
-            # Extract GPU index from lines like "GPU[0]		: GPU 0"
+        if line.startswith("GPU[") and "]" in line:
             try:
                 idx = line.split("[")[1].split("]")[0]
-                gpu_ids.append(int(idx))
+                gpu_ids.add(int(idx))
             except (IndexError, ValueError):
                 continue
 
+    gpu_ids = sorted(list(gpu_ids))
     return len(gpu_ids), gpu_ids
 
 

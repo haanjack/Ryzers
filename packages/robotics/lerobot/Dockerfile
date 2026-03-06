@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y librccl-dev && \
 
 # Copy distributed training scripts
 COPY detect_gpus.py /ryzers/detect_gpus.py
-COPY distributed_train.sh /ryzers/distributed_train.sh
-RUN chmod +x /ryzers/distributed_train.sh
+COPY train_policy_distributed.py /ryzers/train_policy_distributed.py
+RUN chmod +x /ryzers/train_policy_distributed.py
 
 # Install latest lerobot with GR00T support
 RUN git clone https://github.com/huggingface/lerobot.git \
@@ -41,13 +41,23 @@ COPY test.sh /ryzers/test_lerobot.sh
 RUN chmod +x /ryzers/test_lerobot.sh
 
 # Create an entrypoint to autmatically login to Hugging Face on docker start
-RUN echo -e '#!/bin/bash\n\
-if [ -n "$HF_TOKEN" ]; then\n\
-  hf auth login --token "$HF_TOKEN" --add-to-git-credential\n\
-fi\n\
-export HF_USER=$(hf auth whoami | head -n 1 | cut -d" " -f3)\n\
-echo "🚀 Logged in as $HF_USER"\n\
-exec "$@"' > /ryzers/entrypoint.sh && chmod +x /ryzers/entrypoint.sh
+RUN printf '%s\n' \
+  '#!/bin/bash' \
+  'if [ -n "$HF_TOKEN" ]; then' \
+  '  hf auth login --token "$HF_TOKEN" --add-to-git-credential' \
+  'fi' \
+  'export HF_USER=$(hf auth whoami | head -n 1 | cut -d" " -f3)' \
+  'echo "🚀 Logged in as $HF_USER"' \
+  'if [ $# -eq 0 ]; then' \
+  '  exec /ryzers/test_lerobot.sh' \
+    'elif [[ "$1" == -* ]]; then' \
+    '  exec /ryzers/test_lerobot.sh "$@"' \
+  'else' \
+  '  exec "$@"' \
+  'fi' \
+  > /ryzers/entrypoint.sh \
+  && chmod +x /ryzers/entrypoint.sh
 
 ENTRYPOINT ["/ryzers/entrypoint.sh"]
 CMD /ryzers/test_lerobot.sh
+

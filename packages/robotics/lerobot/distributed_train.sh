@@ -107,9 +107,9 @@ TORCHRUN_CMD="torchrun \
     --master_addr=$MASTER_ADDR \
     --master_port=$MASTER_PORT"
 
-# If training args provided, run lerobot-train with them
+# If training args provided, run the LeRobot training script with them
 if [ ${#TRAIN_ARGS[@]} -gt 0 ]; then
-    FULL_CMD="$TORCHRUN_CMD -m lerobot.scripts.train ${TRAIN_ARGS[*]}"
+    FULL_CMD="$TORCHRUN_CMD /ryzers/lerobot/examples/training/train_policy.py ${TRAIN_ARGS[*]}"
 else
     # Default: just run torchrun (user should provide the script)
     FULL_CMD="$TORCHRUN_CMD"
