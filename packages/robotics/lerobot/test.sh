@@ -52,11 +52,11 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --use-compile)
-            TRAIN_ARGS+=(\"--use-compile\")
+            TRAIN_ARGS+=("--use-compile")
             shift
             ;;
         --use-amp)
-            TRAIN_ARGS+=(\"--use-amp\")
+            TRAIN_ARGS+=("--use-amp")
             shift
             ;;
 
@@ -177,11 +177,10 @@ DISTRIBUTED_ARGS=(
     --policy=$POLICY_TYPE
 )
 
-if [ ${#TRAIN_ARGS[@]} -gt 0 ]; then
-    FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${TRAIN_ARGS[*]}"
-else
-    FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${DISTRIBUTED_ARGS[*]}"
-fi
+# Combine distributed args with any additional training args
+ALL_ARGS="${DISTRIBUTED_ARGS[*]} ${TRAIN_ARGS[*]}"
+
+FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py $ALL_ARGS"
 
 if [ "$DRY_RUN" = true ]; then
     echo "Dry run - command that would be executed:"
