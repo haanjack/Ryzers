@@ -36,8 +36,8 @@ RUN git clone https://github.com/huggingface/lerobot.git \
  && pip install -e ".[aloha,pusht,dynamixel,feetech,pi]"
 
 # Patch GRoOT to pass device_map during from_pretrained to prevent meta tensor issues
-COPY patch_groot.py /tmp/patch_groot.py
-RUN python3 /tmp/patch_groot.py && rm /tmp/patch_groot.py
+COPY patch_groot.py /ryzers/patch_groot.py
+RUN python3 /ryzers/patch_groot.py
 
 # Install dependencies - use latest transformers with GRoOT compatibility patch
 RUN pip install --no-cache-dir "numpy<2" pytest huggingface_hub num2words peft && \
@@ -54,10 +54,12 @@ RUN printf '%s\n' \
   'fi' \
   'export HF_USER=$(hf auth whoami | head -n 1 | cut -d" " -f3)' \
   'echo "🚀 Logged in as $HF_USER"' \
+  '# Apply runtime patches for GR00T compatibility' \
+  'python3 /ryzers/patch_groot.py 2>/dev/null || true' \
   'if [ $# -eq 0 ]; then' \
   '  exec /ryzers/test_lerobot.sh' \
-    'elif [[ "$1" == -* ]]; then' \
-    '  exec /ryzers/test_lerobot.sh "$@"' \
+  'elif [[ "$1" == -* ]]; then' \
+  '  exec /ryzers/test_lerobot.sh "$@"' \
   'else' \
   '  exec "$@"' \
   'fi' \
