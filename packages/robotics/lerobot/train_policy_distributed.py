@@ -33,6 +33,13 @@ from lerobot.policies.groot.modeling_groot import GrootPolicy
 from lerobot.policies.factory import make_pre_post_processors
 
 
+def make_delta_timestamps(delta_indices: list[int] | None, fps: int) -> list[float]:
+    """Convert delta indices to timestamps. Returns [0] if delta_indices is None."""
+    if delta_indices is None:
+        return [0]
+    return [i / fps for i in delta_indices]
+
+
 def setup_distributed():
     """Initialize distributed training if running under torchrun."""
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
@@ -40,8 +47,9 @@ def setup_distributed():
         world_size = int(os.environ["WORLD_SIZE"])
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
-        dist.init_process_group(backend="nccl")
+        # Set device before init_process_group to avoid warnings
         torch.cuda.set_device(local_rank)
+        dist.init_process_group(backend="nccl", device_id=torch.device(f"cuda:{local_rank}"))
 
         return True, rank, world_size, local_rank
 
@@ -101,7 +109,7 @@ def main(args=None):
     # Optimization flags (from arguments or defaults)
     use_compile = known_args.use_compile
     use_amp = known_args.use_amp
-    amp_dtype = torch.bfloat16  # Use bfloat16 instead of float16
+    amp_dtype = torch.bfloat16 if use_amp else torch.float32
 
     if rank == 0:
         print(f"  Optimizations:")
@@ -122,21 +130,20 @@ def main(args=None):
         cfg = ACTConfig(
             input_features=input_features,
             output_features=output_features,
-            device=device
         )
         policy = ACTPolicy(cfg)
     elif policy_type == "diffusion":
         cfg = DiffusionConfig(
             input_features=input_features,
             output_features=output_features,
-            device=device
         )
         policy = DiffusionPolicy(cfg)
     elif policy_type == "groot":
+        # GRoOT requires device during initialization to avoid meta tensor issues
         cfg = GrootConfig(
             input_features=input_features,
             output_features=output_features,
-            device=device
+            device=device,
         )
         policy = GrootPolicy(cfg)
     else:
@@ -145,10 +152,6 @@ def main(args=None):
     # Setup policy for training
     policy.train()
     policy.to(device)
-    for module in policy.modules():
-        for buf_name, buf in module.named_buffers(recurse=False):
-            if buf.device != device:
-                module.register_buffer(buf_name, buf.to(device))
 
     # Apply torch.compile if enabled (PyTorch 2.0+)
     if use_compile and hasattr(torch, 'compile'):
@@ -162,19 +165,33 @@ def main(args=None):
 
     preprocessor, postprocessor = make_pre_post_processors(cfg, dataset_stats=dataset_metadata.stats)
 
-    # Configure delta timestamps (if supported by policy config)
+    # Configure delta timestamps based on policy type
+    # ACT: action chunking + observations for images only
+    # Diffusion: all observation types + action sequence
+    # GRoOT: action sequence only
     delta_timestamps = {}
-    if hasattr(cfg, 'observation_delta_indices') and hasattr(cfg, 'action_delta_indices'):
-        delta_timestamps = {
-            "observation.image": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
-            "observation.state": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
-            "action": [i / dataset_metadata.fps for i in cfg.action_delta_indices],
-        }
-    else:
-        # Default for policies without delta indices (e.g., some versions of GRoOT)
-        if rank == 0:
-            print("  Note: Policy config doesn't have delta_indices, using default timestamps")
-        delta_timestamps = None
+
+    if policy_type == "act":
+        # ACT expects action chunking
+        delta_timestamps["action"] = make_delta_timestamps(cfg.action_delta_indices, dataset_metadata.fps)
+        # Add delta timestamps for image features only (not state)
+        for key in cfg.image_features:
+            delta_timestamps[key] = make_delta_timestamps(cfg.observation_delta_indices, dataset_metadata.fps)
+
+    elif policy_type == "diffusion":
+        # Diffusion expects observations and action sequence
+        delta_timestamps["action"] = make_delta_timestamps(cfg.action_delta_indices, dataset_metadata.fps)
+        # Add delta timestamps for all observation features
+        for key in input_features.keys():
+            delta_timestamps[key] = make_delta_timestamps(cfg.observation_delta_indices, dataset_metadata.fps)
+
+    elif policy_type == "groot":
+        # GRoOT expects action sequence
+        delta_timestamps["action"] = make_delta_timestamps(cfg.action_delta_indices, dataset_metadata.fps)
+
+    if rank == 0:
+        print(f"  Delta timestamps configured for {policy_type} policy")
+        print(f"    Keys: {list(delta_timestamps.keys())}")
 
     # Create dataset
     dataset = LeRobotDataset(known_args.dataset, delta_timestamps=delta_timestamps)
@@ -206,7 +223,7 @@ def main(args=None):
         print("Starting training...\n")
         print(f"Optimizations:")
         print(f"  torch.compile: {use_compile and hasattr(torch, 'compile')}")
-        print(f"  Mixed precision: {use_amp} (dtype: {amp_dtype if use_amp else 'N/A'})\n")
+        print(f"  Mixed precision: {use_amp} (dtype: {amp_dtype})\n")
 
     while not done:
         if sampler is not None:
@@ -215,7 +232,7 @@ def main(args=None):
         for batch in dataloader:
             batch = preprocessor(batch)
 
-            # Forward pass with automatic mixed precision (bfloat16)
+            # Forward pass with automatic mixed precision (if enabled)
             with torch.amp.autocast('cuda', enabled=use_amp, dtype=amp_dtype):
                 loss, _ = policy.forward(batch)
 
@@ -225,7 +242,7 @@ def main(args=None):
             scaler.update()
             optimizer.zero_grad()
 
-            if rank == 0 and step % log_freq == 0:
+            if rank == 0 and (step % log_freq == 0 or step == training_steps - 1):
                 print(f"step: {step:5d} loss: {loss.item():.3f}")
 
             step += 1
@@ -237,9 +254,20 @@ def main(args=None):
     if rank == 0:
         print(f"\nSaving checkpoint to {output_directory}...")
         policy_to_save = policy.module if is_distributed else policy
+
+        # Remove device from config before saving (draccus cannot serialize torch.device)
+        if hasattr(policy_to_save.config, 'device'):
+            original_device = policy_to_save.config.device
+            policy_to_save.config.device = None
+
         policy_to_save.save_pretrained(output_directory)
         preprocessor.save_pretrained(output_directory)
         postprocessor.save_pretrained(output_directory)
+
+        # Restore device to config
+        if hasattr(policy_to_save.config, 'device'):
+            policy_to_save.config.device = original_device
+
         print("✓ Training complete!")
 
     if is_distributed:

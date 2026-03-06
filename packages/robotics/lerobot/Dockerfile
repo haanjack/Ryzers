@@ -35,7 +35,13 @@ RUN git clone https://github.com/huggingface/lerobot.git \
  && sed -i '/"torchvision[>=<~ ]*/d' pyproject.toml \
  && pip install -e ".[aloha,pusht,dynamixel,feetech,pi]"
 
-RUN pip install --no-cache-dir "numpy<2" pytest huggingface_hub num2words "transformers>=4.57.1,<5.0.0" peft
+# Patch GRoOT to pass device_map during from_pretrained to prevent meta tensor issues
+COPY patch_groot.py /tmp/patch_groot.py
+RUN python3 /tmp/patch_groot.py && rm /tmp/patch_groot.py
+
+# Install dependencies - use latest transformers with GRoOT compatibility patch
+RUN pip install --no-cache-dir "numpy<2" pytest huggingface_hub num2words peft && \
+    pip install --no-cache-dir --upgrade transformers
 
 COPY test.sh /ryzers/test_lerobot.sh
 RUN chmod +x /ryzers/test_lerobot.sh
