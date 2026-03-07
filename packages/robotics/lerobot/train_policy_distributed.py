@@ -67,6 +67,19 @@ def main(args=None):
     parser.add_argument("--policy", type=str, default="act", choices=["act", "diffusion", "groot"], help="Policy type (default: act)")
     parser.add_argument("--dataset", type=str, default="lerobot/pusht", help="Dataset repo ID (default: lerobot/pusht)")
 
+    # torch.compile options
+    parser.add_argument("--compile-mode", type=str, default="reduce-overhead",
+                        choices=["default", "reduce-overhead", "max-autotune"],
+                        help="torch.compile mode (default: reduce-overhead)")
+    parser.add_argument("--compile-fullgraph", action="store_true",
+                        help="Use fullgraph=True for torch.compile")
+    parser.add_argument("--compile-backend", type=str, default="inductor",
+                        help="torch.compile backend (default: inductor)")
+    parser.add_argument("--compile-dynamic", action="store_true",
+                        help="Use dynamic=True for torch.compile")
+    parser.add_argument("--compile-disable-eagle", action="store_true",
+                        help="Disable torch.compile for Eagle backbone (GR00T only)")
+
     # Filter out torchrun/DDP arguments before parsing
     if args is None:
         # Remove any arguments that aren't recognized
@@ -157,7 +170,29 @@ def main(args=None):
     if use_compile and hasattr(torch, 'compile'):
         if rank == 0:
             print("Applying torch.compile optimization...")
-        policy = torch.compile(policy, mode="reduce-overhead")
+            print(f"  mode: {known_args.compile_mode}")
+            print(f"  fullgraph: {known_args.compile_fullgraph}")
+            print(f"  backend: {known_args.compile_backend}")
+            print(f"  dynamic: {known_args.compile_dynamic}")
+
+        compile_kwargs = {
+            "mode": known_args.compile_mode,
+            "fullgraph": known_args.compile_fullgraph,
+            "backend": known_args.compile_backend,
+        }
+        if known_args.compile_dynamic:
+            compile_kwargs["dynamic"] = True
+
+        # For GR00T: selectively compile only the action head to avoid Eagle backbone issues
+        if policy_type == "groot" and known_args.compile_disable_eagle:
+            if rank == 0:
+                print("  GR00T: Compiling action head only (backbone frozen)")
+            # Only compile the action head, keep backbone as-is
+            policy._groot_model.action_head = torch.compile(
+                policy._groot_model.action_head, **compile_kwargs
+            )
+        else:
+            policy = torch.compile(policy, **compile_kwargs)
 
     # Wrap with DDP if distributed
     if is_distributed:
@@ -203,7 +238,10 @@ def main(args=None):
     optimizer = torch.optim.Adam(policy.parameters(), lr=learning_rate)
 
     # Setup GradScaler for mixed precision training
-    scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
+    # Note: GradScaler is NOT needed for BFloat16 (same dynamic range as float32)
+    # Only use GradScaler for float16
+    use_scaler = use_amp and amp_dtype == torch.float16
+    scaler = torch.amp.GradScaler('cuda', enabled=use_scaler)
 
     dataloader = DataLoader(
         dataset,

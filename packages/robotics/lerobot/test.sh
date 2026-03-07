@@ -59,6 +59,22 @@ while [[ $# -gt 0 ]]; do
             TRAIN_ARGS+=("--use-amp")
             shift
             ;;
+        --compile-mode)
+            TRAIN_ARGS+=("--compile-mode" "$2")
+            shift 2
+            ;;
+        --compile-fullgraph)
+            TRAIN_ARGS+=("--compile-fullgraph")
+            shift
+            ;;
+        --compile-backend)
+            TRAIN_ARGS+=("--compile-backend" "$2")
+            shift 2
+            ;;
+        --compile-disable-eagle)
+            TRAIN_ARGS+=("--compile-disable-eagle")
+            shift
+            ;;
 
         --dry-run)
             DRY_RUN=true
