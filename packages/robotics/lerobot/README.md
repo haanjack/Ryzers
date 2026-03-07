@@ -101,6 +101,48 @@ The following environment variables can be set for distributed training:
 | `NPROC_PER_NODE` | Number of GPUs to use |
 | `POLICY_TYPE` | Policy type (act or groot) |
 
+## Optimization Options
+
+### Mixed Precision (AMP)
+
+Enable automatic mixed precision for faster training with BFloat16:
+
+```bash
+ryzers run -- "--policy groot --training-steps 100 --use-amp"
+```
+
+**Note:** GR00T uses BFloat16 internally, so GradScaler is automatically disabled (BFloat16 has the same dynamic range as Float32).
+
+### torch.compile
+
+torch.compile can significantly speed up training, but has compatibility issues with GR00T's Eagle vision model. Use selective compilation to compile only the trainable action head:
+
+```bash
+# GR00T with selective compilation (recommended)
+ryzers run -- "--policy groot --training-steps 100 --use-amp --use-compile --compile-disable-eagle"
+
+# ACT with full compilation (works fine)
+ryzers run -- "--policy act --training-steps 100 --use-amp --use-compile"
+```
+
+### Compile Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--use-compile` | Enable torch.compile optimization | off |
+| `--compile-mode` | Compilation mode: `default`, `reduce-overhead`, `max-autotune` | `reduce-overhead` |
+| `--compile-fullgraph` | Require full graph compilation | off |
+| `--compile-backend` | Backend for torch.compile | `inductor` |
+| `--compile-dynamic` | Enable dynamic shape support | off |
+| `--compile-disable-eagle` | Compile only action head (GR00T only) | off |
+
+### Why `--compile-disable-eagle` for GR00T?
+
+GR00T's Eagle vision backbone has dynamic control flow that causes issues with torch.compile's graph tracing:
+- `hidden_states` tuple access fails during Dynamo tracing
+- Selective compilation avoids this by only compiling the DiT action head
+- The frozen backbone remains uncompiled but still functional
+
 ## Training and Controlling Robot Arms
 
 For this example we use the LeRobot [SO-101](https://huggingface.co/docs/lerobot/en/so101) leader and follower arms, however you can easily swap them with a different robot arm type in the following scripts.
