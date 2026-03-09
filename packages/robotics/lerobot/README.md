@@ -43,27 +43,16 @@ Scale training across multiple AMD GPUs using ROCm's RCCL backend.
 ryzers run
 ```
 
-### Multi-GPU Auto-Detect
+### Multi-GPU Training
 
-Automatically uses all available GPUs:
-
-```bash
-ryzers run --distributed
-```
-
-### Force Specific GPU Count
+Use `--nproc-per-node` to specify the number of GPUs:
 
 ```bash
-# Use exactly 4 GPUs
-ryzers run --distributed --nproc-per-node 4
-```
+# Use 4 GPUs
+ryzers run -- "--nproc-per-node 4"
 
-### Force Single-GPU Mode
-
-Disable distributed training even on multi-GPU systems:
-
-```bash
-ryzers run --no-distributed
+# Use all available GPUs (auto-detected)
+ryzers run -- "--nproc-per-node 8"
 ```
 
 ### Multi-Node Training
@@ -72,34 +61,22 @@ For training across multiple nodes, run on each node with appropriate settings:
 
 ```bash
 # Node 0 (master)
-ryzers run --distributed --nnodes 2 --nproc-per-node 4 --node-rank 0 --master-addr 10.0.0.1
+ryzers run -- "--nnodes 2 --nproc-per-node 4 --node-rank 0 --master-addr 10.0.0.1"
 
 # Node 1 (worker)
-ryzers run --distributed --nnodes 2 --nproc-per-node 4 --node-rank 1 --master-addr 10.0.0.1
+ryzers run -- "--nnodes 2 --nproc-per-node 4 --node-rank 1 --master-addr 10.0.0.1"
 ```
 
-### Distributed Training Options
+### Training Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--distributed` | Enable distributed training | auto-detect |
-| `--no-distributed` | Force single-GPU mode | - |
-| `--nproc-per-node` | GPUs per node | all available |
+| `--nproc-per-node` | GPUs per node | 1 |
 | `--nnodes` | Number of nodes | 1 |
 | `--node-rank` | Node rank (0=master) | 0 |
 | `--master-addr` | Master node address | localhost |
 | `--master-port` | Master node port | 29500 |
 | `--policy` | Policy type (act/groot) | act |
-
-### Environment Variables
-
-The following environment variables can be set for distributed training:
-
-| Variable | Description |
-|----------|-------------|
-| `DISTRIBUTED` | Set to `0` to force single-GPU |
-| `NPROC_PER_NODE` | Number of GPUs to use |
-| `POLICY_TYPE` | Policy type (act or groot) |
 
 ## Optimization Options
 
