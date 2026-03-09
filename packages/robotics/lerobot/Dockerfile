@@ -16,7 +16,6 @@ ENV FLASH_ATTENTION_TRITON_AMD_ENABLE="TRUE"
 ENV BUILD_TYPE="rocm"
 RUN git clone --recursive https://github.com/ROCm/flash-attention /opt/flash-attention && \
     cd /opt/flash-attention && \
-    cd flash-attention && \
     git checkout main_perf && \
     python setup.py install
 
