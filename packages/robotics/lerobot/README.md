@@ -280,22 +280,18 @@ lerobot-train \
 For larger datasets or faster training, use distributed training across multiple GPUs:
 
 ```bash
-# Inside the container, or use ryzers run --distributed
+# Inside the container
 torchrun --nproc_per_node=4 \
-    -m lerobot.scripts.train \
-    --dataset.repo_id=${HF_USER}/cube_test_dataset \
-    --policy.type=act \
-    --policy.device=cuda \
-    --training.batch_size=64 \
-    --steps=20000
+    /ryzers/train_policy_distributed.py \
+    --dataset ${HF_USER}/cube_test_dataset \
+    --policy act \
+    --batch-size 64 \
+    --training-steps 20000
 ```
 
-Or use the convenience script:
+Or use the ryzers run command with torchrun arguments:
 ```bash
-/ryzers/distributed_train.sh --nproc-per-node 4 -- \
-    --dataset.repo_id=${HF_USER}/cube_test_dataset \
-    --policy.type=act \
-    --policy.device=cuda
+ryzers run -- "--nproc-per-node 4 --policy act --training-steps 100"
 ```
 
 ### 5. Run inference

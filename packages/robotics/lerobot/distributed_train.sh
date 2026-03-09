@@ -61,7 +61,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --dry-run           Print command without executing"
             echo ""
             echo "Example:"
-            echo "  $0 --nproc-per-node 4 -- --dataset.repo_id=lerobot/pusht --policy.type=act"
+            echo "  $0 --nproc-per-node 4 -- --dataset lerobot/pusht --policy act"
             exit 1
             ;;
     esac
@@ -107,9 +107,9 @@ TORCHRUN_CMD="torchrun \
     --master_addr=$MASTER_ADDR \
     --master_port=$MASTER_PORT"
 
-# If training args provided, run the LeRobot training script with them
+# If training args provided, run the custom training script with them
 if [ ${#TRAIN_ARGS[@]} -gt 0 ]; then
-    FULL_CMD="$TORCHRUN_CMD /ryzers/lerobot/examples/training/train_policy.py ${TRAIN_ARGS[*]}"
+    FULL_CMD="$TORCHRUN_CMD /ryzers/train_policy_distributed.py ${TRAIN_ARGS[*]}"
 else
     # Default: just run torchrun (user should provide the script)
     FULL_CMD="$TORCHRUN_CMD"

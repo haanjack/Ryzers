@@ -137,12 +137,6 @@ echo "Detected $DETECTED_GPUS total GPU(s)"
 GPU_COUNT="$NPROC_PER_NODE"
 echo "Using $GPU_COUNT GPU(s) for training"
 
-# Patch test training script to run quickly
-echo ""
-echo "Patching training script for quick test..."
-sed -i "s/training_steps = 5000/training_steps = ${TRAINING_STEPS}/" /ryzers/lerobot/examples/training/train_policy.py
-sed -i "s/batch_size=64/batch_size=${BATCH_SIZE}/" /ryzers/lerobot/examples/training/train_policy.py
-
 # Pre-download dataset to avoid concurrent download races during torchrun
 echo ""
 echo "Pre-downloading dataset metadata..."
