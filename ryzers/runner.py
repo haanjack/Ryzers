@@ -106,6 +106,9 @@ class DockerRunner:
         runtime_cmd = self.runtime.runtime
 
         # Generate the bash script
+        # Remove -it from runflags - we'll add it back conditionally
+        runflags_no_tty = runflags.replace("-it ", "").replace(" -it", "")
+
         script_content = f"""#!/bin/bash
 # Auto-generated script to run {runtime_cmd} with combined flags
 # Detected runtime: {runtime_cmd}
@@ -113,17 +116,26 @@ class DockerRunner:
 # Enable X11 forwarding
 xhost +local:docker 2>/dev/null || true
 
-# If first argument starts with --, it's training args for test_lerobot.sh
-# Otherwise pass through as-is (e.g., bash for interactive shell)
+# Determine if we need TTY allocation
+# - For shell commands (bash, sh): allocate TTY if available
+# - For training args (--*): no TTY needed, can run headless
+TTY_FLAG=""
 if [ $# -gt 0 ]; then
     if [[ "$1" == --* ]]; then
-        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} /ryzers/test_lerobot.sh "$@"
-    else
-        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} "$@"
+        # Training arguments - no TTY needed, entrypoint will route to test_lerobot.sh
+        TTY_FLAG=""
+    elif [ -t 0 ]; then
+        # Shell command with TTY available
+        TTY_FLAG="-it"
     fi
-else
-    {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name}
+elif [ -t 0 ]; then
+    # No args with TTY - default interactive mode
+    TTY_FLAG="-it"
 fi
+
+# Training arguments (--*) are handled by the container's entrypoint
+# which routes them to test_lerobot.sh. Just pass them through.
+{runtime_cmd} run $TTY_FLAG {runflags_no_tty}{dist_env}{policy_env} {self.container_name} "$@"
 """
 
         # Write the script to the specified file

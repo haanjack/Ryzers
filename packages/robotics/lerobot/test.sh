@@ -112,8 +112,6 @@ done
 echo "========================================"
 echo "LeRobot Training Test"
 echo "========================================"
-echo "Received arguments: $@"
-echo "Argument count: $#"
 
 # Test 1: Basic lerobot installation check
 echo ""
