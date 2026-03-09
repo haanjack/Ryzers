@@ -14,7 +14,8 @@ RUN git config --global credential.helper store
 # Install flash attention for ROCm (required for GR00T)
 ENV FLASH_ATTENTION_TRITON_AMD_ENABLE="TRUE"
 ENV BUILD_TYPE="rocm"
-RUN git clone --recursive https://github.com/ROCm/flash-attention && \
+RUN git clone --recursive https://github.com/ROCm/flash-attention /opt/flash-attention && \
+    cd /opt/flash-attention && \
     cd flash-attention && \
     git checkout main_perf && \
     python setup.py install
@@ -29,8 +30,8 @@ COPY train_policy_distributed.py /ryzers/train_policy_distributed.py
 RUN chmod +x /ryzers/train_policy_distributed.py
 
 # Install latest lerobot with GR00T support
-RUN git clone https://github.com/huggingface/lerobot.git \
- && cd lerobot \
+RUN git clone https://github.com/huggingface/lerobot.git /opt/lerobot \
+ && cd /opt/lerobot \
  && sed -i '/"torch[>=<~ ]*/d' pyproject.toml \
  && sed -i '/"torchvision[>=<~ ]*/d' pyproject.toml \
  && pip install -e ".[aloha,pusht,dynamixel,feetech,pi]"
@@ -68,4 +69,3 @@ RUN printf '%s\n' \
 
 ENTRYPOINT ["/ryzers/entrypoint.sh"]
 CMD /ryzers/test_lerobot.sh
-

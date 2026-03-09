@@ -66,6 +66,8 @@ def main(args=None):
     parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate (default: 1e-4)")
     parser.add_argument("--policy", type=str, default="act", choices=["act", "diffusion", "groot"], help="Policy type (default: act)")
     parser.add_argument("--dataset", type=str, default="lerobot/pusht", help="Dataset repo ID (default: lerobot/pusht)")
+    parser.add_argument("--output-dir", type=str, default="/ryzers/mounted/outputs/train",
+                        help="Output directory for checkpoints (default: /ryzers/mounted/outputs/train)")
 
     # torch.compile options
     parser.add_argument("--compile-mode", type=str, default="reduce-overhead",
@@ -101,10 +103,11 @@ def main(args=None):
         print(f"  Local Rank:  {local_rank}")
         print(f"{'='*60}\n")
 
-    # Create output directory
-    output_directory = Path(f"outputs/train/{known_args.policy}_{known_args.dataset.split('/')[-1]}")
+    # Create output directory - save to mounted path for external access
+    output_directory = Path(known_args.output_dir) / f"{known_args.policy}_{known_args.dataset.split('/')[-1]}"
     if rank == 0:
         output_directory.mkdir(parents=True, exist_ok=True)
+        print(f"Output directory: {output_directory}")
 
     if is_distributed:
         dist.barrier()
