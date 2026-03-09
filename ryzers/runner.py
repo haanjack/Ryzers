@@ -62,12 +62,14 @@ class DockerRunner:
         # Check if the script exists
         if not os.path.exists(self.script_name):
             raise FileNotFoundError(f"Script {self.script_name} not found.")
-        
+
         # Execute the script
         try:
-
+            # Split docker_cmdstr into individual arguments for proper passing
+            import shlex
+            cmd_args = shlex.split(self.docker_cmdstr) if self.docker_cmdstr else []
             result = subprocess.run(
-                ["bash", self.script_name, self.docker_cmdstr], check=True
+                ["bash", self.script_name] + cmd_args, check=True
             )
             print(f"Script output:\n{result.stdout}")
         except subprocess.CalledProcessError as e:
@@ -111,13 +113,13 @@ class DockerRunner:
 # Enable X11 forwarding
 xhost +local:docker 2>/dev/null || true
 
-# If argument starts with --, it's a training arg for test_lerobot.sh
+# If first argument starts with --, it's training args for test_lerobot.sh
 # Otherwise pass through as-is (e.g., bash for interactive shell)
-if [ -n "$1" ]; then
+if [ $# -gt 0 ]; then
     if [[ "$1" == --* ]]; then
-        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} /ryzers/test_lerobot.sh $1
+        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} /ryzers/test_lerobot.sh "$@"
     else
-        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} $1
+        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} "$@"
     fi
 else
     {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name}
