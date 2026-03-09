@@ -10,7 +10,7 @@ print("=" * 60)
 # ============================================================================
 # Patch 1: Fix Beta distribution initialization and sampling
 # ============================================================================
-file1 = '/ryzers/lerobot/src/lerobot/policies/groot/action_head/flow_matching_action_head.py'
+file1 = '/opt/lerobot/src/lerobot/policies/groot/action_head/flow_matching_action_head.py'
 if os.path.exists(file1):
     with open(file1, 'r') as f:
         content = f.read()
@@ -62,7 +62,7 @@ else:
 # ============================================================================
 # Patch 2: Fix GR00TN15 for transformers >= 4.46 compatibility
 # ============================================================================
-file2 = '/ryzers/lerobot/src/lerobot/policies/groot/groot_n1.py'
+file2 = '/opt/lerobot/src/lerobot/policies/groot/groot_n1.py'
 if os.path.exists(file2):
     with open(file2, 'r') as f:
         content = f.read()
@@ -154,7 +154,7 @@ else:
 # ============================================================================
 # Patch 4: Fix Eagle processor source file (gets copied to cache)
 # ============================================================================
-file3 = '/ryzers/lerobot/src/lerobot/policies/groot/eagle2_hg_model/processing_eagle2_5_vl.py'
+file3 = '/opt/lerobot/src/lerobot/policies/groot/eagle2_hg_model/processing_eagle2_5_vl.py'
 if os.path.exists(file3):
     with open(file3, 'r') as f:
         content = f.read()
