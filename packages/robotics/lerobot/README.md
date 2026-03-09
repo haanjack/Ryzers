@@ -19,10 +19,10 @@ Choose between ACT (faster, default) and GR00T policies:
 
 ```bash
 # ACT policy (default)
-ryzers run --policy act
+ryzers run -- "--policy act"
 
 # GR00T policy
-ryzers run --policy groot
+ryzers run -- "--policy groot"
 ```
 
 ### Container Runtime
