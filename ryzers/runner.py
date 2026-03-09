@@ -111,7 +111,17 @@ class DockerRunner:
 # Enable X11 forwarding
 xhost +local:docker 2>/dev/null || true
 
-{runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} $1
+# If argument starts with --, it's a training arg for test_lerobot.sh
+# Otherwise pass through as-is (e.g., bash for interactive shell)
+if [ -n "$1" ]; then
+    if [[ "$1" == --* ]]; then
+        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} /ryzers/test_lerobot.sh $1
+    else
+        {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name} $1
+    fi
+else
+    {runtime_cmd} run {runflags}{dist_env}{policy_env} {self.container_name}
+fi
 """
 
         # Write the script to the specified file
